@@ -1,0 +1,185 @@
+Imports System.IO
+
+Imports CrystalDecisions.[Shared].Json
+
+Imports LDN_REGRAS
+
+Public Class frmDocumentosEntidades
+#Region "Inicialização"
+    Public Sub New()
+
+        ' Esta chamada é requerida pelo designer.
+        InitializeComponent()
+        Me.MaximizeBox = False
+        ' Adicione qualquer inicialização após a chamada InitializeComponent().
+        cmbTipo.DataSource = Modelos.PegaListaDoModelo(GetType(Modelos.TipoDeDocumento))
+        cmbTipo.DisplayMember = "Texto"
+        cmbTipo.ValueMember = "Valor"
+        cmbTipo.SelectedValue = Modelos.TipoDeDocumento.Contrato_Social
+        txtNome.Text = "Contrato Social"
+        txtNome.ReadOnly = True
+
+        txtUsuario.Text = Principal.Usuário
+
+    End Sub
+
+#End Region
+
+#Region "Função Auxiliar"
+
+    Private Sub Carregagrid()
+        With Me.DataGridView1
+            Dim Obj As New Object
+            .DataSource = Obj
+            .AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None
+            If .Columns.Count = 0 Then
+                .AutoGenerateColumns = False
+                Dim col As Integer = 0
+                .Columns.Add("TipoDocumento", "Tipo de Documento")
+                .Columns(col).DataPropertyName = "TipoDocumento"
+                .Columns(col).Width = 60
+                .Columns(col).ReadOnly = True
+                .Columns(col).DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft
+                col += 1
+                .Columns.Add("NomeDocumento", "Nome do Documento")
+                .Columns(col).DataPropertyName = "NomeDocumento"
+                .Columns(col).Width = 74
+                .Columns(col).ReadOnly = True
+                .Columns(col).DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft
+                col += 1
+                .Columns.Add("Usuario", "Usuario")
+                .Columns(col).DataPropertyName = "Usuario"
+                .Columns(col).Width = 74
+                .Columns(col).ReadOnly = True
+                .Columns(col).DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft
+                col += 1
+                .Columns.Add("DataInclusao", "Data do Cadastro")
+                .Columns(col).DataPropertyName = "Data_Cadastro"
+                .Columns(col).Width = 75
+                .Columns(col).ReadOnly = False
+                .Columns(col).DefaultCellStyle.Format = "dd/MM/yyyy"
+                .Columns(col).DefaultCellStyle.Alignment = DataGridViewContentAlignment.MiddleLeft
+                col += 1
+
+            End If
+        End With
+
+        Dim Retorno As New Documentos
+
+        Me.DataGridView1.DataSource = Retorno.SelectTodos(CmpCliente.BoxCliente.Valor)
+
+    End Sub
+
+#End Region
+
+#Region "Botoes"
+
+    Private Sub btnGravar_Click(sender As Object, e As EventArgs) Handles btnGravar.Click
+        Dim ms As New MemoryStream()
+
+        If pctDocumentos.Image IsNot Nothing Then
+            pctDocumentos.Image.Save(ms, pctDocumentos.Image.RawFormat)
+        End If
+
+
+        Dim DocUsuario As New Documentos With {
+            .CodigoCliente = CmpCliente.BoxCliente.Valor,
+            .TipoDocumento = cmbTipo.SelectedValue,
+            .Usuario = txtUsuario.Text,
+            .NomeDocumento = txtNome.Text,
+            .DataInclusao = dtpDataDoCadastro.Value,
+            .Documento = MS.ToArray()
+        }
+        DocUsuario.Gravar(DocUsuario)
+        Carregagrid()
+    End Sub
+
+    Private Sub btnExcluir_Click(sender As Object, e As EventArgs) Handles btnExcluir.Click
+        Dim resposta As DialogResult = MessageBox.Show("Deseja realmente excluir esta linha?", "Confirmação", MessageBoxButtons.YesNo, MessageBoxIcon.Warning)
+
+        Dim Excluir As New Documentos
+        If DataGridView1.SelectedRows.Count > 0 Then
+
+            If resposta = DialogResult.Yes Then
+                Dim rowIndex = DataGridView1.SelectedRows(0)
+                Excluir.Delete(rowIndex.Cells("CodigoCliente").Value, rowIndex.Cells("NomeDocumento").Value)
+            ElseIf resposta = DialogResult.No Then
+
+                MessageBox.Show("Exclusão cancelada.", "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Question)
+
+            End If
+
+        Else
+            MessageBox.Show("Selecione uma linha para excluir.", "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Question)
+        End If
+
+        Carregagrid()
+    End Sub
+
+#End Region
+
+#Region "Validações"
+
+    Private Sub DisparaValidacao()
+        Dim Sender As New Object
+        Dim e As New System.EventArgs
+
+        Me.txtNome_Validated(Sender, e)
+        Me.CmpCliente_Validated(Sender, e)
+
+
+    End Sub
+
+    Private Sub txtNome_Validated(sender As Object, e As EventArgs)
+        Me.epvValidador.SetError(Me.txtNome, "")
+        If Me.txtNome.Text = "" Then
+            Me.epvValidador.SetError(Me.txtNome, "O Nome do Documento deve ser preenchido!")
+        End If
+    End Sub
+
+    Private Sub CmpCliente_Validated(sender As Object, e As EventArgs) Handles CmpCliente.Validated
+        Me.epvValidador.SetError(Me.CmpCliente, "")
+        If Me.CmpCliente.BoxCliente.Valor = 0 Then
+            Me.epvValidador.SetError(Me.CmpCliente, "O codigo do clietne deve ser preenchido!")
+        End If
+        Carregagrid()
+    End Sub
+
+    Private Sub btnPesquisar_Click(sender As Object, e As EventArgs) Handles btnPesquisar.Click
+        ' Criar o diálogo de seleção de arquivo
+        Dim ofd As New OpenFileDialog()
+
+        ' Configurar filtros (pode adicionar mais tipos de arquivo se quiser)
+        ofd.Filter = "Arquivos de imagem|*.jpg;*.jpeg;*.png;*.bmp;*.gif|Todos os arquivos|*.*"
+        ofd.Title = "Selecione um documento"
+
+        ' Mostrar o diálogo
+        If ofd.ShowDialog() = DialogResult.OK Then
+            Try
+                ' Carregar a imagem escolhida no PictureBox
+                pctDocumentos.Image = Image.FromFile(ofd.FileName)
+
+                ' Ajustar o tamanho da imagem dentro do PictureBox
+                pctDocumentos.SizeMode = PictureBoxSizeMode.Zoom
+            Catch ex As Exception
+                MessageBox.Show("Erro ao carregar a imagem: " & ex.Message, "Erro", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            End Try
+        End If
+    End Sub
+
+    Private Sub cmbTipo_SelectedIndexChanged(sender As Object, e As EventArgs) Handles cmbTipo.SelectedIndexChanged
+        If cmbTipo.SelectedValue = Modelos.TipoDeDocumento.Contrato_Social Then
+            txtNome.Text = "Contrato Social"
+            txtNome.ReadOnly = True
+        ElseIf cmbTipo.SelectedValue = Modelos.TipoDeDocumento.OutrosDocumentos Then
+            txtNome.Text = ""
+            txtNome.ReadOnly = False
+        End If
+    End Sub
+
+#End Region
+
+
+
+
+End Class
